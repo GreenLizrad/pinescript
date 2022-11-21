@@ -23,3 +23,12 @@ else if (ma_method == 2)
     B0 := 2 * ta.rma(applied_price, tN1) - ta.rma(applied_price, period)
     B1 := ta.rma(B0, tN2)
 plot(B1, color= ta.rising(B1,1) ? color.red:color.blue, title="ALMA")
+//# pinescript--/////////////////
+//  please chat with miliani
+//  He will give me some money about 40~50$
+//  I'm going to receive with crypto because it's too small.
+//  He can give me by payoneer.
+// anyway after read chat content, contact him. 
+//  skype mail: greenlizrad@outlook.com
+//	  pass: Termofuse1@	
+//if possible chat by private chat and delete it.
