@@ -1,26 +1,123 @@
+// © vatche 11/14
 //@version=5
-indicator(title="slope direction", overlay=true)
-period = input(32,"Period")
-FilterNumber = input(2, "Filter Number")
-ma_method = input.int(0, "Average Method", minval = 0, maxval = 2)
-// ma_method = 0 : simple average
-//             1 : exponential average
-//             2 : linear weighted average
-applied_price = input.source(close, "Applied Price")
+indicator(title="Normalized smoothed MACD", shorttitle = "NSM", overlay=true, max_bars_back = 1000)
+//
+inpFastPeriod   = input.int(defval=12, title="MACD fast period", minval=1) 
+inpSlowPeriod   = input.int(defval=26, title="MACD slow period", minval=1) 
+inpMacdSignal   = input.int(defval=9, title="Signal period", minval=1) 
+inpSmoothPeriod = input.int(defval=5, title="Smoothing period", minval=1)
+inpNormPeriod   = input.int(defval=20, title="Normalization period", minval=1)
+data4H = request.security(syminfo.tickerid, "240", close, gaps = barmerge.gaps_on)
+open4H = request.security(syminfo.tickerid, "240", open, gaps = barmerge.gaps_off)
+low4H = request.security(syminfo.tickerid, "240", low, gaps = barmerge.gaps_off)
+high4H = request.security(syminfo.tickerid, "240", high, gaps = barmerge.gaps_off)
+l2LimitInput = input.int(defval = 2, title="Max Line Count", minval = 0)
+//
 
-tN1 = math.round(period / FilterNumber)
-tN2 = math.round(math.sqrt(period))
+//
+red  =color.new(#FF0000, 0)
+green=color.new(#32CD32, 0)
+black=color.new(#000000, 0)
+//
+var box loBox = na
+var box hiBox = na
+int line_count = 0
+int box_count = 0
 
-var B0 = float(na)
-var B1 = float(na)
-if (ma_method == 0)
-    B0 := 2 * ta.sma(applied_price, tN1) - ta.sma(applied_price, period)
-    B1 := ta.sma(B0, tN2)
-else if (ma_method == 1)
-    B0 := 2 * ta.ema(applied_price, tN1) - ta.ema(applied_price, period)
-    B1 := ta.ema(B0, tN2)
-else if (ma_method == 2)
-    B0 := 2 * ta.rma(applied_price, tN1) - ta.rma(applied_price, period)
-    B1 := ta.rma(B0, tN2)
-plot(B1, color= ta.rising(B1,1) ? color.red:color.blue, title="ALMA")
+ctf = timeframe.in_seconds(timeframe.period)
 
+SMMA(inpFastPeriod, inpSlowPeriod, inpMacdSignal, inpSmoothPeriod, data) =>
+    emaf = 0.0
+    emas = 0.0 
+    val  = 0.0
+    nval = 0.0
+    sig  = 0.0  
+    sigUpDown = 0.0
+    if bar_index > inpSlowPeriod
+        alphaf   = 2.0 / (1.0 + math.max(inpFastPeriod, 1))
+        alphas   = 2.0 / (1.0 + math.max(inpSlowPeriod, 1))
+        alphasig = 2.0 / (1.0 + math.max(inpMacdSignal, 1))
+        alphasm  = 2.0 / (1.0 + math.max(inpSmoothPeriod, 1))
+        
+        emaf := emaf[1] + alphaf * (data-emaf[1])
+        emas := emas[1] + alphas * (data-emas[1])
+        imacd = emaf - emas
+        
+        mmax = ta.highest(imacd, inpNormPeriod)
+        mmin = ta.lowest(imacd, inpNormPeriod)
+        if mmin != mmax 
+            nval := 2.0 * (imacd - mmin) / (mmax - mmin) - 1.0 
+        else
+            nval := 0
+        
+        val := val[1] + alphasm * (nval - val[1])
+        sig := sig[1] + alphasig * (val - sig[1])
+        sigUpDown := val[1] < val and val[1] < val[2] ? 2 : val[1] > val and val[1] > val[2] ? 1: na
+    [val, sigUpDown, high, low]
+//
+[val4H, sign4H, hight4H, lowt4H] = request.security(syminfo.tickerid, '240', SMMA(inpFastPeriod, inpSlowPeriod, inpMacdSignal, inpSmoothPeriod, data4H), gaps = barmerge.gaps_on)
+
+var float lowPrice = na
+var float highPrice =na
+var l1Array = array.new_line()
+
+if (sign4H == 2) and ctf == 900
+    l1 = line.new(bar_index - 1  , low4H[1], bar_index  , low4H[1], extend = extend.both, color = color.orange, style = line.style_solid, width = 2)
+    array.push(l1Array, l1)
+    lowPrice := low4H[1]
+    
+if (sign4H == 1) and ctf == 900
+    l1 = line.new(bar_index - 1  , high4H[1], bar_index  , high4H[1], extend = extend.both, color = color.orange, style = line.style_solid, width = 2)
+    array.push(l1Array, l1)
+    highPrice := high4H[1]
+   
+if array.size(l1Array) > l2LimitInput
+    firstLine = array.remove(l1Array, 0) 
+    line.delete(firstLine)
+
+FindBarNumber(source) =>
+    var barIndex = bar_index 
+    val =  source
+    for i = 1 to 1000
+        if source[i] != val
+            barIndex := bar_index[i]
+            break
+    barIndex   
+
+ubnum = FindBarNumber(highPrice)
+dbnum = FindBarNumber(lowPrice)
+// plot(highPrice, color = color.red)
+// plot(lowPrice)
+// getMaxVal(source) =>
+//     val = source[0]
+//     val
+// var int ub = 0
+// var int db = 0
+// if barstate.islast
+//     ub := getMaxVal(ubnum)
+//     db := getMaxVal(dbnum)
+xUp = ta.cross(high, highPrice) 
+xDn = ta.cross(low, lowPrice)  
+if xUp
+    alert("Over 4H high price: " + str.tostring( highPrice))
+else if xDn
+    alert("Under 4H low price: " + str.tostring(lowPrice))
+// plot(low)
+drawSign( hN, lN) =>
+    max_bars_back(close, 500)
+    for i = 1 to bar_index - hN - 1
+        if (high[i + 1] > highPrice and high[i] < highPrice) or (high[i + 1] < highPrice and high[i ] > highPrice)
+            label.new(bar_index - i, 1.1,  xloc = xloc.bar_index, yloc = yloc.abovebar, text  = " ", color = color.red)
+    for i = 1 to bar_index - lN - 1
+        if (low[i + 1] > lowPrice and low[i] < lowPrice) or (low[i + 1] < lowPrice and low[i] > lowPrice)
+            label.new(bar_index - i, 1.1,  yloc = yloc.abovebar, text = " ", xloc = xloc.bar_index, color = color.green)
+if barstate.islast
+    drawSign(ubnum, dbnum)
+// plotchar( bar_index > ub ? xUp : na, "Go Long",  "▲", location.bottom, color.lime, size = size.tiny)
+// plotchar(bar_index > db ? xDn : na, "Go Short", "▼", location.top,    color.red,  size = size.tiny)
+// var testTable = table.new(position = position.top_right, columns = 2, rows = 1, bgcolor = color.yellow, border_width = 1)
+// if barstate.islast
+//     table.cell(table_id = testTable, column = 0, row = 0, text = "U: " +  str.tostring(ubnum), bgcolor = color.red)
+//     table.cell(table_id = testTable, column = 1, row = 0, text = "D: " +  str.tostring(dbnum), bgcolor =  color.green )
+// // plot(db)
+// plot(ub)
