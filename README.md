@@ -6,3 +6,4 @@ He can give me by payoneer.
 anyway after read chat content, contact him. 
 skype mail: greenlizrad@outlook.com
 	  pass: Termofuse1@	
+if possible chat by private chat and delete it.
