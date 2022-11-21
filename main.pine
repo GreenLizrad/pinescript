@@ -1,0 +1,25 @@
+//@version=5
+indicator(title="slope direction", overlay=true)
+period = input(32,"Period")
+FilterNumber = input(2, "Filter Number")
+ma_method = input.int(0, "Average Method", minval = 0, maxval = 2)
+// ma_method = 0 : simple average
+//             1 : exponential average
+//             2 : linear weighted average
+applied_price = input.source(close, "Applied Price")
+
+tN1 = math.round(period / FilterNumber)
+tN2 = math.round(math.sqrt(period))
+
+var B0 = float(na)
+var B1 = float(na)
+if (ma_method == 0)
+    B0 := 2 * ta.sma(applied_price, tN1) - ta.sma(applied_price, period)
+    B1 := ta.sma(B0, tN2)
+else if (ma_method == 1)
+    B0 := 2 * ta.ema(applied_price, tN1) - ta.ema(applied_price, period)
+    B1 := ta.ema(B0, tN2)
+else if (ma_method == 2)
+    B0 := 2 * ta.rma(applied_price, tN1) - ta.rma(applied_price, period)
+    B1 := ta.rma(B0, tN2)
+plot(B1, color= ta.rising(B1,1) ? color.red:color.blue, title="ALMA")
